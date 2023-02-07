@@ -16,6 +16,7 @@ functions.set_threads(args)
 bins_p_mu = (20000, 0, 200) # 10 MeV bins
 bins_m_ll = (10000, 0, 100) # 10 MeV bins
 bins_p_ll = (20000, 0, 200) # 10 MeV bins
+bins_p = (1000, 0, 5)
 
 bins_theta = (500, -5, 5)
 bins_phi = (500, -5, 5)
@@ -25,8 +26,6 @@ bins_pdgid = (60, -30, 30)
 bins_charge = (10, -5, 5)
 bins_energy = (60, 0, 100)
 bins_emiss = (1000, 0, 100)
-bins_total = (1000, 0, 100)
-bins_selected = (1000, 0, 100)
 
 bins_cos = (100, -1, 1)
 
@@ -72,20 +71,26 @@ def build_graph_ll(df, dataset):
     
     # construct Lorentz vectors of the leptons
     df = df.Define("leps_tlv", "FCCAnalyses::makeLorentzVectors(leps_all)")
-    df = df.Filter("leps_all_no == 2")
-    
-    df = df.Define("m_inv", "(leps_tlv[0]+leps_tlv[1]).M()")
-    df = df.Filter("m_inv >= 50")
-    
-    
-    df = df.Define("missingEnergy_vec", "FCCAnalyses::missingEnergy(91., ReconstructedParticles)")
-    df = df.Define("missingEnergy", "missingEnergy_vec[0].energy")
-
+    df = df.Define("m_inv", "FCCAnalyses::inv_mass(leps_tlv)")
     df = df.Define("visibleEnergy", "FCCAnalyses::visibleEnergy(ReconstructedParticles)")
     
+    #momentum
+    df = df.Define("muon_leading", "(leps_all_p[0] > leps_all_p[1]) ? leps_all_p[0] : leps_all_p[1]")
+    df = df.Define("muon_subleading", "(leps_all_p[0] < leps_all_p[1]) ? leps_all_p[0] : leps_all_p[1]")
+    df = df.Define("max_pt", "FCCAnalyses::max_pt(leps_tlv)")
+    df = df.Define("max_p", "FCCAnalyses::max_p(leps_all_p)")
     
-    df = df.Define("m_inv", "FCCAnalyses::inv_mass(leps_tlv)")
-    df = df.Filter("leps_all_no>=2")
+    #acoliniearity
+    df = df.Define("acolinearity", "FCCAnalyses::acolinearity(leps_all)")
+    
+    # filters
+    df = df.Filter("leps_all_no == 2")
+    df = df.Filter("abs(cos(leps_all_theta[0]))<0.98")
+    df = df.Filter("abs(cos(leps_all_theta[1]))<0.98")
+    df = df.Filter("muon_leading>0.6*45.5")
+    df = df.Filter("max_pt>=3")
+    df = df.Filter("acolinearity<1.57079632679")
+    
     #df = df.Filter("m_inv>=51.652499999999996")
     #df = df.Filter("emiss<=22.25")
     
@@ -96,9 +101,10 @@ def build_graph_ll(df, dataset):
     results.append(df.Histo1D(("leps_all_no", "", *bins_count), "leps_all_no"))
     results.append(df.Histo1D(("m_inv", "", *bins_m_ll), "m_inv"))
     results.append(df.Histo1D(("emiss", "", *bins_emiss), "emiss"))
+    results.append(df.Histo1D(("acolinearity", "", *bins_phi), "acolinearity"))
+    results.append(df.Histo1D(("max_p", "", *bins_p), "max_p"))
     
     results.append(df.Histo1D(("m_inv", "", *bins_m_ll), "m_inv"))
-    results.append(df.Histo1D(("missingEnergy", "", *bins_m_ll), "missingEnergy"))
     results.append(df.Histo1D(("visibleEnergy", "", *bins_m_ll), "visibleEnergy"))
     
     df = df.Define("theta_plus", "(leps_all_q[0] > 0) ? leps_all_theta[0] : leps_all_theta[1]")
@@ -132,6 +138,7 @@ if __name__ == "__main__":
 
     datasets += functions.filter_datasets(datasets_spring2021_ecm91, ["p8_ee_Zmumu_ecm91"])
     datasets += functions.filter_datasets(datasets_spring2021_ecm91, ["p8_ee_Ztautau_ecm91"])
-    result = functions.build_and_run(datasets, build_graph_ll, "tmp/output_xsec_example.root", maxFiles=args.maxFiles)
+    datasets += functions.filter_datasets(datasets_spring2021_ecm91, ["wzp6_gaga_mumu_5_ecm91p2"])
+    #result = functions.build_and_run(datasets, build_graph_ll, "tmp/output_xsec_example.root", maxFiles=args.maxFiles)
     
-    #functions.build_and_run(datasets, build_graph_ll, "tmp/output_xsec_example.root", maxFiles=args.maxFiles, norm=True, lumi=150000000)
+    functions.build_and_run(datasets, build_graph_ll, "tmp/output_xsec_example.root", maxFiles=args.maxFiles, norm=True, lumi=150000000)
